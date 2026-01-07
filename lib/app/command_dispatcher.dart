@@ -366,8 +366,7 @@ class CommandDispatcher {
   Future<void> _updateTemplateStatus({
     required String templateName,
     required String status,
-  })
-  async {
+  }) async {
     final primaryId = await LocalStorageService.getPrimaryId();
     final mac = await DeviceService.getDeviceId();
 
