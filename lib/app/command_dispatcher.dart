@@ -308,8 +308,7 @@ class CommandDispatcher {
   Future<void> loadLocalTemplate(
     String htmlPath, {
     bool scheduled = false,
-  })
-  async {
+  }) async {
     print('🧠 Loading local scheduled template: $htmlPath');
 
     appState.hideTemplate();

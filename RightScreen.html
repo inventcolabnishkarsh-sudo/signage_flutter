@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Left Screen Template</title>
+
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            width: 1920px;
+            height: 1080px;
+            background: #000;
+            overflow: hidden;
+        }
+
+        .playlist-container {
+            position: absolute;
+            overflow: hidden;
+            background: #000;
+        }
+
+        .playlist-media {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .stretch-fill .playlist-media { object-fit: fill !important; }
+        .stretch-contain .playlist-media { object-fit: contain !important; }
+        .stretch-cover .playlist-media { object-fit: cover !important; }
+        .stretch-none .playlist-media { object-fit: none !important; }
+    </style>
+
+    <script>
+        /* ================= GLOBAL STATE ================= */
+        window.videoElements = {};
+        window.playlistTimeouts = {};
+        window.repeatCounters = {};
+        const DEFAULT_STRETCH = "contain";
+
+        /* ================= PLAYLIST ENGINE ================= */
+        function startPlaylist(regionName, playlistData, defaultDuration, startIndex, stretchMode) {
+
+            const container = document.getElementById("playlist-" + regionName);
+            if (!container || !playlistData || playlistData.length === 0) return;
+
+            const mediaBase = container.getAttribute("data-media-base") || "./Media/";
+            const total = playlistData.length;
+            let index = startIndex || 0;
+
+            container.className = "playlist-container stretch-" + (stretchMode || DEFAULT_STRETCH);
+
+            window.repeatCounters[regionName] = { current: 0, target: 1 };
+
+            function show() {
+                const item = playlistData[index];
+                if (!item) return;
+
+                const mediaUrl = mediaBase + item.filename;
+                console.log("Loading media:", mediaUrl);
+
+                container.innerHTML = "";
+                const isVideo = item.type === "video";
+
+                if (isVideo) {
+                    const video = document.createElement("video");
+                    video.src = mediaUrl;
+                    video.className = "playlist-media";
+                    video.muted = true;
+                    video.autoplay = true;
+                    video.controls = false;
+                    video.loop = false;
+                    video.playsInline = true;
+                    video.setAttribute("webkit-playsinline", "true");
+
+                    window.videoElements[regionName] = video;
+                    window.repeatCounters[regionName].current = 0;
+                    window.repeatCounters[regionName].target = item.repeat || 0;
+
+					container.appendChild(video);
+					
+                    video.onended = () => {
+                        window.repeatCounters[regionName].current++;
+                        if (window.repeatCounters[regionName].current >= window.repeatCounters[regionName].target) {
+                            moveToNextItem();
+                        } else {
+                            video.currentTime = 0;
+                            video.play();
+                        }
+                    };
+                    
+                    //video.play().catch(() => {});
+					function moveToNextItem() {
+						if (video) {
+							video.pause();
+							video.remove();
+						}
+						index = (index + 1) % total;
+						show();
+					}
+                }
+                else {
+                    const img = document.createElement("img");
+                    img.src = mediaUrl;
+                    img.className = "playlist-media";
+                    img.onerror = () => console.error("Failed to load image:", mediaUrl);
+                    container.appendChild(img);
+
+                    if (total > 1 && defaultDuration > 0) {
+                        scheduleNext(defaultDuration);
+                    }
+                }
+            }
+
+            function scheduleNext(ms) {
+				index = (index + 1) % total;
+				
+				if (window.playlistTimeouts[regionName]) {
+					clearTimeout(window.playlistTimeouts[regionName]);
+				}
+                window.playlistTimeouts[regionName] = setTimeout(show, ms);
+            }
+
+            //function next() {
+			//	if (video) {
+			//		video.pause();
+			//		video.remove();
+			//	}
+            //    index = (index + 1) % total;
+            //    show();
+            //}
+
+            show();
+        }
+
+        /* ================= AUTO START ================= */
+        function startAllPlaylists() {
+            document.querySelectorAll('[data-has-playlist="true"]').forEach(el => {
+                const region = el.id.replace("playlist-", "");
+                const data = JSON.parse(el.getAttribute("data-playlist-data"));
+                const duration = parseInt(el.getAttribute("data-playlist-duration")) || 3000;
+                const index = parseInt(el.getAttribute("data-playlist-current-index")) || 0;
+                const stretch = el.getAttribute("data-stretch-mode") || DEFAULT_STRETCH;
+
+                startPlaylist(region, data, duration, index, stretch);
+            });
+        }
+
+        window.addEventListener("load", startAllPlaylists);
+    </script>
+</head>
+
+<body>
+<div class="canvas-wrapper">
+
+    <div id="playlist-Region_1"
+         class="playlist-container"
+         data-has-playlist="true"
+         data-playlist-data='[
+            { "filename": "LeftScreen3.mp4", "type": "video", "duration": 0, "repeat": 2 },{"filename":"Burger.jpg","type":"image","duration":5000,"repeat":"0"}
+         ]'
+         data-media-base="./Media/"
+         data-playlist-duration="0"
+         data-stretch-mode="fill"
+         data-playlist-current-index="0"
+         style="left:0;top:0;width:1920px;height:1080px;">
+    </div>
+
+</div>
+</body>
+</html>

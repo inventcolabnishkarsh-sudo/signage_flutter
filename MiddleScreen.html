@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html><head><meta charset='utf-8' />
+<title>Template Preview</title>
+<style>
+
+        body {
+            margin: 0;
+            background: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+
+		* {
+			-webkit-touch-callout: none;
+			-webkit-user-select: none;
+			user-select: none;
+			-webkit-tap-highlight-color: transparent;
+		}
+
+        .canvas-wrapper {
+            position: relative;
+            background: #fff;
+            border: 1px solid #ccc;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .canvas-wrapper * {
+            position: absolute;
+            transform-origin: top left;
+            box-sizing: border-box;
+        }
+        .region {
+            pointer-events: none;
+        }
+        .region-label {
+            display : none;
+        }
+        .playlist-container {
+            overflow: hidden;
+            background: transparent;
+        }
+        .playlist-media {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            //transition: opacity 0.5s ease-in-out;
+        }
+        .stretch-fill .playlist-media {
+             object-fit: fill !important;
+         }
+         .stretch-contain .playlist-media {
+             object-fit: contain !important;
+         }
+         .stretch-cover .playlist-media {
+             object-fit: cover !important;
+         }
+         .stretch-none .playlist-media {
+             object-fit: none !important;
+         }
+        .playlist-video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+			-webkit-transform: translateZ(0);
+			transform: translateZ(0);
+			backface-visibility: hidden;
+        }
+        .clickable-overlay {
+            cursor: pointer;
+            z-index: 1000;
+            background: transparent;
+            border: none;
+        }
+        .clickable-overlay:hover {
+            background: rgba(0, 120, 215, 0.1);
+        }
+        .text-content {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .scrolling-text {
+            white-space: nowrap;
+            display: inline-block;
+        }
+        .image-element {
+            object-fit: contain;
+        }
+        .video-element {
+            object-fit: contain;
+			-webkit-transform: translateZ(0);
+			transform: translateZ(0);
+			backface-visibility: hidden;
+        }
+        .ScrollbarNone{overflow:hidden;}
+
+</style>
+<script>
+    // Global object to store playlist timeouts and video elements
+    window.playlistTimeouts = {};
+    window.videoElements = {};
+    // Default stretch mode
+    const defaultStretchMode = 'contain';
+
+    function startPlaylist(regionName, playlistData, defaultDuration, currentIndex, stretchMode) {
+		if (!window.playlistTimeouts) window.playlistTimeouts = {};
+		if (!window.videoElements) window.videoElements = {};
+		if (!window.repeatCounters) window.repeatCounters = {}; // ADDED
+
+		console.log('Starting playlist for:', regionName);
+		console.log('Playlist data:', playlistData);
+		console.log('Default duration:', defaultDuration);
+		console.log('Current index:', currentIndex);
+		console.log('Stretch mode:', stretchMode);
+
+		const container = document.getElementById('playlist-' + regionName);
+		if (!container || !playlistData || playlistData.length === 0) return;
+
+		// Apply stretch mode class
+		const actualStretchMode = stretchMode || defaultStretchMode;
+		container.className = 'playlist-container stretch-' + actualStretchMode;
+		console.log('Applied class:', container.className);
+
+		const mediaBase = container.getAttribute('data-media-base') || '/Media/';
+		console.log('Media base:', mediaBase);
+
+		let index = currentIndex || 0;
+		const totalItems = playlistData.length;
+
+		// ADDED: Initialize repeat counter
+		window.repeatCounters[regionName] = {
+			current: 0,
+			target: 1
+		};
+
+		function showNextMedia() {
+			const currentItem = playlistData[index];
+
+			if (!currentItem) return;
+
+			const mediaUrl = mediaBase + currentItem.filename;
+			console.log('Loading media:', mediaUrl);
+
+			// ADDED: Set target repeat count for current item
+			window.repeatCounters[regionName].current = 0;
+			window.repeatCounters[regionName].target = currentItem.repeat || 0;
+
+			// Handle duration for single vs multiple items
+			let itemDuration = currentItem.duration ?? defaultDuration;
+			const isVideo = currentItem.type === 'video';
+
+			// Single item logic: if only one item and no duration specified, set to null for infinite display
+			if (totalItems === 1 && (!currentItem.duration || currentItem.duration === 0)) {
+				itemDuration = null; // infinite display for single item
+			}
+
+			// Remove previous media
+			container.innerHTML = '';
+
+			if (isVideo) {
+				// Handle video playback
+				const videoElement = document.createElement('video');
+				videoElement.src = mediaUrl;
+				videoElement.className = 'playlist-media';
+				videoElement.muted = true;
+				videoElement.autoplay = true;
+				videoElement.controls = false;
+				videoElement.playsInline = true;
+
+				// Store video element for cleanup
+				if (!window.videoElements) window.videoElements = {};
+				window.videoElements[regionName] = videoElement;
+
+				container.appendChild(videoElement);
+
+				// Video end handler with repeat logic
+				videoElement.onended = function() {
+					console.log('Video ended');
+					// ADDED: Increment repeat counter
+					window.repeatCounters[regionName].current++;
+					console.log(`Repeat: ${window.repeatCounters[regionName].current}/${window.repeatCounters[regionName].target}`);
+
+					// ADDED: Check if reached target repeat count
+					if (window.repeatCounters[regionName].current >= window.repeatCounters[regionName].target) {
+						console.log('Moving to next item');
+						moveToNextItem();
+					} else {
+						console.log('Repeating same video');
+						// Restart the same video
+						videoElement.currentTime = 0;
+						videoElement.play();
+					}
+				};
+
+				// Safety timeout with repeat logic
+				const safetyTimeout = setTimeout(() => {
+					console.log('Safety timeout reached');
+					// ADDED: Increment counter for timeout too
+					window.repeatCounters[regionName].current++;
+
+					// ADDED: Check repeat count
+					if (window.repeatCounters[regionName].current >= window.repeatCounters[regionName].target) {
+						moveToNextItem();
+					} else {
+						videoElement.currentTime = 0;
+						videoElement.play();
+					}
+				}, itemDuration * 1000 || defaultDuration * 1000);
+
+				function moveToNextItem() {
+					clearTimeout(safetyTimeout);
+					if (videoElement) {
+						videoElement.pause();
+						videoElement.remove();
+					}
+					index = (index + 1) % totalItems;
+					showNextMedia();
+				}
+
+			} else {
+				// Handle image display (images don't repeat)
+				const img = document.createElement('img');
+				img.src = mediaUrl;
+				img.className = 'playlist-media';
+				img.style.opacity = '0';
+				img.onload = function() {
+					console.log('Image loaded successfully');
+				};
+				img.onerror = function() {
+					console.error('Failed to load image:', mediaUrl);
+				};
+
+				container.appendChild(img);
+
+				// Fade in image
+				setTimeout(() => {
+					img.style.opacity = '1';
+				}, 50);
+
+				// Only advance if multiple media or finite duration
+				if (totalItems > 1 || itemDuration !== null) {
+					scheduleNextItem(itemDuration);
+				} else {
+					console.log('Single image item - showing indefinitely');
+				}
+			}
+		}
+		function scheduleNextItem(duration) {
+			// Move to next item
+			index = (index + 1) % totalItems;
+			console.log('Scheduling next item in:', duration, 'ms');
+
+			// Clear existing timeout and set new one
+			if (window.playlistTimeouts[regionName]) {
+				clearTimeout(window.playlistTimeouts[regionName]);
+			}
+			window.playlistTimeouts[regionName] = setTimeout(showNextMedia, duration);
+		}
+
+		// Start the playlist
+		showNextMedia();
+	}
+
+    function stopPlaylist(regionName) {
+        // Clear timeout
+        if (window.playlistTimeouts[regionName]) {
+            clearTimeout(window.playlistTimeouts[regionName]);
+            delete window.playlistTimeouts[regionName];
+        }
+
+        // Stop and remove video
+        if (window.videoElements && window.videoElements[regionName]) {
+            const videoElement = window.videoElements[regionName];
+            videoElement.pause();
+            videoElement.remove();
+            delete window.videoElements[regionName];
+        }
+
+        // Clear container
+        const container = document.getElementById('playlist-' + regionName);
+        if (container) {
+            container.innerHTML = '';
+        }
+    }
+
+    // Click handling function
+    function handleRegionClick(el) {
+        const type = el.getAttribute('data-action-type');
+        const value = el.getAttribute('data-action-value');
+
+        if (type === 'url' && value) {
+            openUrlInIFrame(window, value);
+        } else if (type === 'image' && value) {
+            alert('Image clicked: ' + value);
+        }
+    }
+
+    function openUrlInIFrame(previewWindow, value) {
+        if (!/^https?:\/\//i.test(value)) {
+            value = 'https://' + value;
+        }
+
+        // Store the original body content
+        const originalBodyContent = previewWindow.document.body.innerHTML;
+
+        // Clear and create iframe
+        previewWindow.document.body.innerHTML = '';
+
+        const iframe = previewWindow.document.createElement('iframe');
+        iframe.src = value;
+        iframe.style.position = 'absolute';
+        iframe.style.left = '0';
+        iframe.style.top = '0';
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        iframe.style.zIndex = '9998';
+        previewWindow.document.body.appendChild(iframe);
+
+        // Create close button
+        const closeBtn = previewWindow.document.createElement('button');
+        closeBtn.innerText = '✕ Close';
+        closeBtn.style.position = 'absolute';
+        closeBtn.style.top = '10px';
+        closeBtn.style.right = '10px';
+        closeBtn.style.padding = '8px 12px';
+        closeBtn.style.background = 'rgba(255,255,255,0.95)';
+        closeBtn.style.color = '#000';
+        closeBtn.style.border = '1px solid #ccc';
+        closeBtn.style.borderRadius = '4px';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.zIndex = '9999';
+        closeBtn.style.fontSize = '14px';
+        closeBtn.style.fontWeight = 'bold';
+        closeBtn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+
+        closeBtn.onclick = () => {
+            // Restore original content
+            previewWindow.document.body.innerHTML = originalBodyContent;
+            // Restart any playlists that were running
+            restartPlaylists();
+        };
+
+        previewWindow.document.body.appendChild(closeBtn);
+    }
+
+    function restartPlaylists() {
+        const playlistRegions = document.querySelectorAll('[data-has-playlist=true]');
+        playlistRegions.forEach(region => {
+            const regionName = region.id.replace('playlist-', '');
+            const playlistData = JSON.parse(region.getAttribute('data-playlist-data'));
+            const defaultDuration = parseInt(region.getAttribute('data-playlist-duration')) || 3000;
+            const currentIndex = parseInt(region.getAttribute('data-playlist-current-index')) || 0;
+            const stretchMode = region.getAttribute('data-stretch-mode') || 'contain';
+
+            console.log('Restarting playlist:', regionName, 'with stretch mode:', stretchMode);
+            startPlaylist(regionName, playlistData, defaultDuration, currentIndex, stretchMode);
+        });
+    }
+
+    // Auto-start playlists when page loads
+    window.addEventListener('load', function() {
+        console.log('Page loaded, starting playlists...');
+        restartPlaylists();
+    });
+
+    // Clean up when page unloads
+    window.addEventListener('beforeunload', function() {
+        // Clear all timeouts
+        if (window.playlistTimeouts) {
+            Object.values(window.playlistTimeouts).forEach(timeoutId => {
+                clearTimeout(timeoutId);
+            });
+            window.playlistTimeouts = {};
+        }
+
+        // Stop all videos
+        if (window.videoElements) {
+            Object.values(window.videoElements).forEach(videoElement => {
+                videoElement.pause();
+                videoElement.remove();
+            });
+            window.videoElements = {};
+        }
+    });
+
+    // Pause videos when page is not visible
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden && window.videoElements) {
+            Object.values(window.videoElements).forEach(videoElement => {
+                videoElement.pause();
+            });
+        }
+    });
+</script>
+</head><body class='ScrollbarNone'>
+<div class='canvas-wrapper' style='width:1920px;height:1080px;'>
+
+                                <div id='playlist-Region_1'
+                                     class='playlist-container'
+                                     data-has-playlist='true'
+                                     data-playlist-data='[{"filename":"LeftScreen3.mp4","type":"video","duration":0,"repeat":"2"},{"filename":"Burger.jpg","type":"image","duration":5000,"repeat":"0"}]'
+                                     data-media-base='./Media/'
+                                     data-playlist-duration='0'
+                                     data-stretch-mode='fill'
+                                     data-playlist-current-index='0'
+                                     style='left:0px;top:0px;width:1920px;height:1080px;transform:rotate(0deg);opacity:1;z-index:5;border:1px solid #ffffff;background:#000000;'>
+                                </div>
+</div></body></html>
