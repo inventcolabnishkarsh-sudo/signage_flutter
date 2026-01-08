@@ -114,7 +114,7 @@ class CommandDispatcher {
       await NativeWebViewBridge.clear();
 
       // 🧹 DELETE OLD FILES (🔥 THIS IS THE FIX)
-      await _clearAllTemplates();
+      //await _clearAllTemplates();
 
       // 🟡 DOWNLOADING
       appState.startTemplateLoading('DOWNLOADING TEMPLATE', progress: 0.15);
@@ -144,28 +144,28 @@ class CommandDispatcher {
     }
   }
 
-  Future<void> _clearAllTemplates() async {
-    final baseDir = await _templateService.getTemplateDir();
-    final dir = Directory(baseDir);
-
-    if (!dir.existsSync()) return;
-
-    print('🧹 Clearing old templates...');
-
-    for (final entity in dir.listSync(recursive: false)) {
-      try {
-        if (entity is Directory) {
-          entity.deleteSync(recursive: true);
-          print('🗑 Deleted folder: ${entity.path}');
-        } else if (entity is File && entity.path.endsWith('.zip')) {
-          entity.deleteSync();
-          print('🗑 Deleted zip: ${entity.path}');
-        }
-      } catch (e) {
-        print('❌ Failed to delete ${entity.path}: $e');
-      }
-    }
-  }
+  // Future<void> _clearAllTemplates() async {
+  //   final baseDir = await _templateService.getTemplateDir();
+  //   final dir = Directory(baseDir);
+  //
+  //   if (!dir.existsSync()) return;
+  //
+  //   print('🧹 Clearing old templates...');
+  //
+  //   for (final entity in dir.listSync(recursive: false)) {
+  //     try {
+  //       if (entity is Directory) {
+  //         entity.deleteSync(recursive: true);
+  //         print('🗑 Deleted folder: ${entity.path}');
+  //       } else if (entity is File && entity.path.endsWith('.zip')) {
+  //         entity.deleteSync();
+  //         print('🗑 Deleted zip: ${entity.path}');
+  //       }
+  //     } catch (e) {
+  //       print('❌ Failed to delete ${entity.path}: $e');
+  //     }
+  //   }
+  // }
 
   Future<String?> _downloadAndPrepareTemplate(String templateName) async {
     final cleanName = templateName.contains('\\')
@@ -276,7 +276,7 @@ class CommandDispatcher {
     if (templateName == null || templateName.isEmpty) return;
     AppToast.show('Scheduled content started');
     // 🧹 CLEAR OLD FIRST
-    await _clearAllTemplates();
+    //await _clearAllTemplates();
     print('📥 Scheduled template received → downloading');
 
     // 🔽 DOWNLOAD + EXTRACT (same as WinForms)
@@ -308,8 +308,7 @@ class CommandDispatcher {
   Future<void> loadLocalTemplate(
     String htmlPath, {
     bool scheduled = false,
-  })
-  async {
+  }) async {
     print('🧠 Loading local scheduled template: $htmlPath');
 
     appState.hideTemplate();
@@ -366,8 +365,7 @@ class CommandDispatcher {
   Future<void> _updateTemplateStatus({
     required String templateName,
     required String status,
-  })
-  async {
+  }) async {
     final primaryId = await LocalStorageService.getPrimaryId();
     final mac = await DeviceService.getDeviceId();
 

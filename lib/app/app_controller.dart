@@ -77,6 +77,8 @@ class AppController {
       macAddress: deviceId,
     );
 
+    appState.setConnectionCode(connectionCode);
+
     // 1️⃣ CHECK CONNECTIVITY
     while (true) {
       if (await connectivityService.checkConnectivity()) {
