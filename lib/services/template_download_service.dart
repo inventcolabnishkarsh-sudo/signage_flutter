@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/template_download_dto.dart';
 import 'device_service.dart';
 import 'local_storage_service.dart';
+import 'package:flutter/foundation.dart';
 
 class TemplateDownloadService {
   // --------------------------------------------------------------------------
@@ -83,45 +84,104 @@ class TemplateDownloadService {
   // --------------------------------------------------------------------------
   // 📦 Extract ZIP → Downloads/Templates/<templateName>/
   // --------------------------------------------------------------------------
+  // Future<bool> extractTemplate(String templateName) async {
+  //   try {
+  //     final base = await _downloadsDir();
+  //
+  //     // 🔥 SAME SAFE NAME
+  //     final safeName = _safeTemplateName(templateName);
+  //
+  //     final zipFile = File('$base/$safeName.zip');
+  //
+  //     if (!zipFile.existsSync()) {
+  //       print('❌ ZIP not found: ${zipFile.path}');
+  //       return false;
+  //     }
+  //
+  //     final bytes = zipFile.readAsBytesSync();
+  //     final archive = ZipDecoder().decodeBytes(bytes);
+  //
+  //     final outDir = Directory('$base/$safeName');
+  //     if (!outDir.existsSync()) {
+  //       outDir.createSync(recursive: true);
+  //     }
+  //
+  //     for (final file in archive) {
+  //       final filePath = '${outDir.path}/${file.name}';
+  //       if (file.isFile) {
+  //         File(filePath)
+  //           ..createSync(recursive: true)
+  //           ..writeAsBytesSync(file.content as List<int>);
+  //       } else {
+  //         Directory(filePath).createSync(recursive: true);
+  //       }
+  //     }
+  //
+  //     print('✅ Extracted to: ${outDir.path}');
+  //     return true;
+  //   } catch (e, stack) {
+  //     print('❌ extractTemplate failed: $e');
+  //     print(stack);
+  //     return false;
+  //   }
+  // }
+
   Future<bool> extractTemplate(String templateName) async {
     try {
       final base = await _downloadsDir();
-
-      // 🔥 SAME SAFE NAME
       final safeName = _safeTemplateName(templateName);
 
-      final zipFile = File('$base/$safeName.zip');
+      final zipPath = '$base/$safeName.zip';
+      final outPath = '$base/$safeName';
 
-      if (!zipFile.existsSync()) {
-        print('❌ ZIP not found: ${zipFile.path}');
+      final zipFile = File(zipPath);
+      if (!await zipFile.exists()) {
+        print('❌ ZIP not found: $zipPath');
         return false;
       }
 
-      final bytes = zipFile.readAsBytesSync();
-      final archive = ZipDecoder().decodeBytes(bytes);
+      // 🔥 Run heavy ZIP work in background isolate
+      await compute(_extractZipIsolate, {
+        'zipPath': zipPath,
+        'outPath': outPath,
+      });
 
-      final outDir = Directory('$base/$safeName');
-      if (!outDir.existsSync()) {
-        outDir.createSync(recursive: true);
-      }
-
-      for (final file in archive) {
-        final filePath = '${outDir.path}/${file.name}';
-        if (file.isFile) {
-          File(filePath)
-            ..createSync(recursive: true)
-            ..writeAsBytesSync(file.content as List<int>);
-        } else {
-          Directory(filePath).createSync(recursive: true);
-        }
-      }
-
-      print('✅ Extracted to: ${outDir.path}');
+      print('✅ Extracted to: $outPath');
       return true;
     } catch (e, stack) {
       print('❌ extractTemplate failed: $e');
       print(stack);
       return false;
+    }
+  }
+
+  void _extractZipIsolate(Map<String, String> args) {
+    final zipPath = args['zipPath']!;
+    final outPath = args['outPath']!;
+
+    final bytes = File(zipPath).readAsBytesSync();
+    final archive = ZipDecoder().decodeBytes(bytes);
+
+    final outDir = Directory(outPath);
+    if (!outDir.existsSync()) {
+      outDir.createSync(recursive: true);
+    }
+
+    for (final file in archive) {
+      final name = file.name;
+
+      // 🛡️ ZIP SLIP protection
+      if (name.contains('..')) continue;
+
+      final filePath = '$outPath/$name';
+
+      if (file.isFile) {
+        File(filePath)
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(file.content as List<int>);
+      } else {
+        Directory(filePath).createSync(recursive: true);
+      }
     }
   }
 
