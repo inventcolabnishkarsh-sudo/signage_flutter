@@ -53,6 +53,7 @@ dependencies:
   file_selector: ^1.0.3
   permission_handler: ^11.3.0
   fluttertoast: ^9.0.0
+  flutter_archive: ^6.0.4
 
 dev_dependencies:
   flutter_test:
