@@ -1,132 +1,59 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
 import '../models/template_download_dto.dart';
 import 'device_service.dart';
 import 'local_storage_service.dart';
-import 'package:flutter/foundation.dart';
 
 class TemplateDownloadService {
-  // --------------------------------------------------------------------------
-  // 🔗 Native ZIP Channel
-  // --------------------------------------------------------------------------
-  static const MethodChannel _zipChannel = MethodChannel('native_zip');
-  // --------------------------------------------------------------------------
-  // 📁 DOWNLOADS/Templates (PUBLIC STORAGE)
-  // --------------------------------------------------------------------------
-  Future<String> _downloadsDir() async {
-    final dir = await getDownloadsDirectory();
-    if (dir == null) {
-      throw Exception('Downloads directory not available');
-    }
+  static const MethodChannel _zipChannel =
+  MethodChannel('native_zip');
 
-    final templates = Directory('${dir.path}/Templates');
-    if (!templates.existsSync()) {
-      templates.createSync(recursive: true);
-    }
-
-    return templates.path;
-  }
-
-  // --------------------------------------------------------------------------
-  // ⬇️ Download ZIP (EXACT C# behavior)
-  // --------------------------------------------------------------------------
-  Future<bool> downloadZip(String templateName) async {
+  /// 🔥 FULLY NATIVE: download + unzip + return html path
+  Future<String?> downloadAndPrepareTemplate(String templateName) async {
     try {
       final primaryId = await LocalStorageService.getPrimaryId();
       final mac = await DeviceService.getDeviceId();
 
       if (primaryId == null) {
-        print('❌ PrimaryScreenID missing');
-        return false;
+        debugPrint('❌ PrimaryScreenID missing');
+        return null;
       }
-
-      // 🔥 SAFE NAME FOR FILESYSTEM
-      final safeName = _safeTemplateName(templateName);
 
       final dto = TemplateDownloadDto(
         screenId: primaryId,
         macProductId: mac,
-        templateName: templateName, // ✅ FULL NAME SENT TO BACKEND
+        templateName: templateName,
       );
 
-      final url = Uri.parse(
+      final result =
+      await _zipChannel.invokeMethod<Map>('downloadAndUnzip', {
+        'apiUrl':
         'https://117.219.19.154:8021/api/Task/DownloadTemplateFile',
-      );
-
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(dto.toJson()),
-      );
-
-      if (response.statusCode != 200) {
-        print('❌ Download failed: ${response.body}');
-        return false;
-      }
-
-      final base = await _downloadsDir();
-
-      // ✅ USE SAFE NAME FOR ZIP
-      final zipPath = '$base/$safeName.zip';
-
-      await File(zipPath).writeAsBytes(response.bodyBytes);
-
-      print('✅ ZIP saved at: $zipPath');
-      return true;
-    } catch (e, stack) {
-      print('❌ DownloadZip exception: $e');
-      print(stack);
-      return false;
-    }
-  }
-
-  // --------------------------------------------------------------------------
-  // 📦 EXTRACT ZIP (NATIVE ANDROID)
-  // --------------------------------------------------------------------------
-  Future<bool> extractTemplate(String templateName) async {
-    try {
-      final base = await _downloadsDir();
-      final safeName = _safeTemplateName(templateName);
-
-      final zipPath = '$base/$safeName.zip';
-      final destPath = '$base/$safeName';
-
-      if (!File(zipPath).existsSync()) {
-        debugPrint('❌ ZIP not found: $zipPath');
-        return false;
-      }
-
-      // 🔥 CALL NATIVE ANDROID UNZIP
-      final bool? success = await _zipChannel.invokeMethod<bool>('unzip', {
-        'zipPath': zipPath,
-        'destPath': destPath,
+        'templateName': templateName,
+        'body': jsonEncode(dto.toJson()),
       });
 
-      if (success == true) {
-        debugPrint('✅ Native unzip completed: $destPath');
-        return true;
+      if (result == null || result['success'] != true) {
+        debugPrint('❌ Native download failed');
+        return null;
       }
 
-      debugPrint('❌ Native unzip failed');
-      return false;
+      final htmlPath = result['htmlPath'] as String?;
+      debugPrint('✅ Template ready at: $htmlPath');
+
+      return htmlPath;
     } catch (e, stack) {
-      debugPrint('❌ extractTemplate failed: $e');
+      debugPrint('❌ downloadAndPrepareTemplate error: $e');
       debugPrintStack(stackTrace: stack);
-      return false;
+      return null;
     }
   }
 
-  String _safeTemplateName(String name) {
-    return name.contains('\\') ? name.split('\\').last : name;
-  }
-
-  // --------------------------------------------------------------------------
-  // 📂 Template Directory (used by dispatcher)
-  // --------------------------------------------------------------------------
+  /// Used by web server
   Future<String> getTemplateDir() async {
-    return _downloadsDir();
+    final result =
+    await _zipChannel.invokeMethod<String>('getTemplatesRoot');
+    return result!;
   }
 }

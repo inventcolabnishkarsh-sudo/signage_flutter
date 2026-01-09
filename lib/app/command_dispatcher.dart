@@ -161,40 +161,66 @@ class CommandDispatcher {
   //     }
   //   }
   // }
-
   Future<String?> _downloadAndPrepareTemplate(String templateName) async {
-    final cleanName = templateName.contains('\\')
-        ? templateName.split('\\').last
-        : templateName;
+    try {
+      AppToast.show('Downloading template');
 
-    // 1️⃣ Download ZIP
-    final zipOk = await _templateService.downloadZip(templateName);
-    if (!zipOk) return null;
+      // 🔥 ONE native call does everything:
+      // - download zip
+      // - unzip
+      // - resolve HTML path
+      final htmlPath = await _templateService.downloadAndPrepareTemplate(
+        templateName,
+      );
 
-    // 2️⃣ Extract ZIP
-    final extractOk = await _templateService.extractTemplate(cleanName);
-    if (!extractOk) return null;
+      if (htmlPath == null || htmlPath.isEmpty) {
+        print('❌ Native download/unzip failed');
+        return null;
+      }
 
-    // 3️⃣ Resolve template directory
-    final baseDir = await _templateService.getTemplateDir();
-    final templateDir = Directory('$baseDir/$cleanName');
+      AppToast.show('Download template success');
 
-    if (!templateDir.existsSync()) {
-      print('❌ Template directory not found');
+      print('✅ Using existing HTML: $htmlPath');
+      return htmlPath;
+    } catch (e) {
+      print('❌ _downloadAndPrepareTemplate failed: $e');
       return null;
     }
-
-    // 4️⃣ USE EXISTING HTML (IMPORTANT)
-    final htmlFile = File('${templateDir.path}/$cleanName.html');
-    AppToast.show('Download template success');
-    if (!htmlFile.existsSync()) {
-      print('❌ HTML file missing: ${htmlFile.path}');
-      return null;
-    }
-
-    print('✅ Using existing HTML: ${htmlFile.path}');
-    return htmlFile.path;
   }
+
+  // Future<String?> _downloadAndPrepareTemplate(String templateName) async {
+  //   final cleanName = templateName.contains('\\')
+  //       ? templateName.split('\\').last
+  //       : templateName;
+  //
+  //   // 1️⃣ Download ZIP
+  //   final zipOk = await _templateService.downloadZip(templateName);
+  //   if (!zipOk) return null;
+  //
+  //   // 2️⃣ Extract ZIP
+  //   final extractOk = await _templateService.extractTemplate(cleanName);
+  //   if (!extractOk) return null;
+  //
+  //   // 3️⃣ Resolve template directory
+  //   final baseDir = await _templateService.getTemplateDir();
+  //   final templateDir = Directory('$baseDir/$cleanName');
+  //
+  //   if (!templateDir.existsSync()) {
+  //     print('❌ Template directory not found');
+  //     return null;
+  //   }
+  //
+  //   // 4️⃣ USE EXISTING HTML (IMPORTANT)
+  //   final htmlFile = File('${templateDir.path}/$cleanName.html');
+  //   AppToast.show('Download template success');
+  //   if (!htmlFile.existsSync()) {
+  //     print('❌ HTML file missing: ${htmlFile.path}');
+  //     return null;
+  //   }
+  //
+  //   print('✅ Using existing HTML: ${htmlFile.path}');
+  //   return htmlFile.path;
+  // }
 
   Future<String?> getLocalIpAddress() async {
     final interfaces = await NetworkInterface.list(
