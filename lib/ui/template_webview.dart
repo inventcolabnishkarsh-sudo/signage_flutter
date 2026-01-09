@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../app/app_state.dart';
 
 class TemplateWebView extends StatefulWidget {
@@ -17,7 +18,10 @@ class _TemplateWebViewState extends State<TemplateWebView> {
   void initState() {
     super.initState();
 
-    _controller = WebViewController()
+    // 🔥 Android-specific creation params
+    final params = const PlatformWebViewControllerCreationParams();
+
+    _controller = WebViewController.fromPlatformCreationParams(params)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF000000))
       ..addJavaScriptChannel(
@@ -43,6 +47,11 @@ class _TemplateWebViewState extends State<TemplateWebView> {
         ),
       );
 
+    // 🔥 ANDROID AUTOPLAY FIX (THIS IS THE KEY)
+    final androidController = _controller.platform as AndroidWebViewController;
+
+    androidController.setMediaPlaybackRequiresUserGesture(false);
+
     _loadTemplate();
   }
 
@@ -54,11 +63,7 @@ class _TemplateWebViewState extends State<TemplateWebView> {
 
     widget.state.startTemplateLoading("Preparing content…");
 
-    if (template.startsWith('http://') || template.startsWith('https://')) {
-      await _controller.loadRequest(Uri.parse(template));
-    } else {
-      await _controller.loadFile(template);
-    }
+    await _controller.loadRequest(Uri.parse(template));
   }
 
   @override
