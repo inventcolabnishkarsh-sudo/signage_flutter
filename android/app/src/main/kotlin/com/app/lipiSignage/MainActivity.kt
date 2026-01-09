@@ -112,17 +112,17 @@ class MainActivity : FlutterActivity() {
         templateName: String
     ): String {
 
-        val downloads =
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        // ✅ APP-SCOPED STORAGE (CORRECT)
+        val baseDir = getExternalFilesDir(null)
+            ?: throw RuntimeException("External storage not available")
 
-        val templatesDir = File(downloads, "Templates")
+        val templatesDir = File(baseDir, "Templates")
         if (!templatesDir.exists()) templatesDir.mkdirs()
 
         val safeName = templateName.substringAfterLast("\\")
         val zipFile = File(templatesDir, "$safeName.zip")
         val outDir = File(templatesDir, safeName)
 
-        // ---------------- DOWNLOAD ----------------
         trustAllSSL()
 
         val conn = URL(apiUrl).openConnection() as HttpURLConnection
@@ -150,7 +150,6 @@ class MainActivity : FlutterActivity() {
             }
         }
 
-        // ---------------- UNZIP ----------------
         if (outDir.exists()) outDir.deleteRecursively()
         outDir.mkdirs()
 
@@ -158,13 +157,16 @@ class MainActivity : FlutterActivity() {
             var entry: ZipEntry?
             while (zis.nextEntry.also { entry = it } != null) {
                 val file = File(outDir, entry!!.name)
-
                 if (entry!!.isDirectory) {
                     file.mkdirs()
                 } else {
                     file.parentFile?.mkdirs()
                     FileOutputStream(file).use { fos ->
-                        val buffer = ByteArray(4096)
+                        val buffer = try {
+                        ByteArray(4096)
+                    } catch (e: Exception) {
+                        TODO("Not yet implemented")
+                    }
                         var len: Int
                         while (zis.read(buffer).also { len = it } != -1) {
                             fos.write(buffer, 0, len)
@@ -184,8 +186,10 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun getTemplatesRoot(): String {
-        val downloads =
-            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        return File(downloads, "Templates").absolutePath
+        val baseDir = getExternalFilesDir(null)
+            ?: throw RuntimeException("External storage not available")
+
+        return File(baseDir, "Templates").absolutePath
     }
+
 }

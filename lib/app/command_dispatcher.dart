@@ -264,28 +264,26 @@ class CommandDispatcher {
     // 🔥 Start server on all interfaces
     await LocalWebServer.start(templatesRoot, port: 8080);
 
-    final relativePath = htmlPath.replaceFirst('$templatesRoot/', '');
+    final url = await _buildTemplateUrl(htmlPath);
 
-    // 🔑 Resolve LAN IP
-    final ip = await getLocalIpAddress();
-
-    // ✅ Fallback to localhost if IP not found
-    final host = ip ?? 'localhost';
-
-    final url = 'http://$host:8080/$relativePath';
-
-    print('🧠 Native WebView loading: $url');
+    print('🧠 WebView loading: $url');
     AppToast.show('Loading template on screen...');
 
-    // // 🔥 Native WebView lifecycle
-    // await NativeWebViewBridge.hide();
-    // await NativeWebViewBridge.clear();
-    //
-    // await NativeWebViewBridge.loadTemplate(url);
-    // await NativeWebViewBridge.show();
-
-    // Keep state for backend health reporting
     appState.setTemplate(url);
+  }
+
+  Future<String> _buildTemplateUrl(String htmlPath) async {
+    final templatesRoot = await _templateService.getTemplateDir();
+
+    // Convert absolute file path → relative web path
+    final relativePath = htmlPath.startsWith(templatesRoot)
+        ? htmlPath.replaceFirst('$templatesRoot/', '')
+        : htmlPath;
+
+    final ip = await getLocalIpAddress();
+    final host = ip ?? 'localhost';
+
+    return 'http://$host:8080/$relativePath';
   }
 
   // ---------------------------------------------------------------------------
@@ -339,12 +337,10 @@ class CommandDispatcher {
     final templatesRoot = await _templateService.getTemplateDir();
     await LocalWebServer.start(templatesRoot, port: 8080);
 
-    final relativePath = htmlPath.replaceFirst('$templatesRoot/', '');
-    final url = 'http://localhost:8080/$relativePath';
+    final url = await _buildTemplateUrl(htmlPath);
 
-    // await NativeWebViewBridge.loadTemplate(url);
-    // await NativeWebViewBridge.show();
-
+    print('🧠 WebView loading (scheduled): $url');
+    AppToast.show('🧠 WebView loading (scheduled)');
     appState.setTemplate(url, scheduled: scheduled);
     appState.showTemplateView();
   }
