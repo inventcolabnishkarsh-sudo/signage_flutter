@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../models/sse_message.dart';
-import '../native/native_webview_bridge.dart';
 import '../scheduling/template_schedule.dart';
 import '../scheduling/template_schedule_parser.dart';
 import '../server/local_web_server.dart';
@@ -76,8 +75,6 @@ class CommandDispatcher {
       // Stop anything running
       appState.hideTemplate();
       appState.clearTemplate();
-      await NativeWebViewBridge.hide();
-      await NativeWebViewBridge.clear();
 
       appState.startTemplateLoading('LOADING DEFAULT TEMPLATE', progress: 0.2);
 
@@ -110,8 +107,6 @@ class CommandDispatcher {
       // 🔴 HARD STOP CURRENT TEMPLATE
       appState.hideTemplate();
       appState.clearTemplate();
-      await NativeWebViewBridge.hide();
-      await NativeWebViewBridge.clear();
 
       // 🧹 DELETE OLD FILES (🔥 THIS IS THE FIX)
       //await _clearAllTemplates();
@@ -256,12 +251,12 @@ class CommandDispatcher {
     print('🧠 Native WebView loading: $url');
     AppToast.show('Loading template on screen...');
 
-    // 🔥 Native WebView lifecycle
-    await NativeWebViewBridge.hide();
-    await NativeWebViewBridge.clear();
-
-    await NativeWebViewBridge.loadTemplate(url);
-    await NativeWebViewBridge.show();
+    // // 🔥 Native WebView lifecycle
+    // await NativeWebViewBridge.hide();
+    // await NativeWebViewBridge.clear();
+    //
+    // await NativeWebViewBridge.loadTemplate(url);
+    // await NativeWebViewBridge.show();
 
     // Keep state for backend health reporting
     appState.setTemplate(url);
@@ -312,8 +307,8 @@ class CommandDispatcher {
     print('🧠 Loading local scheduled template: $htmlPath');
 
     appState.hideTemplate();
-    await NativeWebViewBridge.hide();
-    await NativeWebViewBridge.clear();
+    // await NativeWebViewBridge.hide();
+    // await NativeWebViewBridge.clear();
 
     final templatesRoot = await _templateService.getTemplateDir();
     await LocalWebServer.start(templatesRoot, port: 8080);
@@ -321,8 +316,8 @@ class CommandDispatcher {
     final relativePath = htmlPath.replaceFirst('$templatesRoot/', '');
     final url = 'http://localhost:8080/$relativePath';
 
-    await NativeWebViewBridge.loadTemplate(url);
-    await NativeWebViewBridge.show();
+    // await NativeWebViewBridge.loadTemplate(url);
+    // await NativeWebViewBridge.show();
 
     appState.setTemplate(url, scheduled: scheduled);
     appState.showTemplateView();

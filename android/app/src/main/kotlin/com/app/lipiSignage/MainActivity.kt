@@ -1,27 +1,16 @@
 package com.app.lipiSignage
 
-import android.graphics.Color
 import android.os.Bundle
-import android.view.View
-import android.view.ViewGroup
-import android.webkit.WebSettings
-import android.webkit.WebView
-import android.webkit.WebViewClient
-import android.widget.FrameLayout
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.*
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
 
 class MainActivity : FlutterActivity() {
 
-    private val CHANNEL = "native_webview"
-
-    private var rootLayout: FrameLayout? = null
-    private var webView: WebView? = null
-
-    // ----------------------------------------------------------------------
-    // FLUTTER ↔ NATIVE CHANNEL
-    // ----------------------------------------------------------------------
+    private val CHANNEL = "native_zip"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -33,31 +22,21 @@ class MainActivity : FlutterActivity() {
 
             when (call.method) {
 
-                "loadTemplate" -> {
-                    val url = call.argument<String>("url")
-                    if (url != null) {
-                        loadWebView(url)
-                        result.success(null)
-                    } else {
-                        result.error("INVALID_URL", "URL is null", null)
+                "unzip" -> {
+                    val zipPath = call.argument<String>("zipPath")
+                    val destPath = call.argument<String>("destPath")
+
+                    if (zipPath == null || destPath == null) {
+                        result.error("ARGS", "Invalid arguments", null)
+                        return@setMethodCallHandler
                     }
-                }
 
-                "showWebView" -> {
-                    webView?.visibility = View.VISIBLE
-                    webView?.bringToFront()
-                    webView?.requestFocus()
-                    result.success(null)
-                }
-
-                "hideWebView" -> {
-                    webView?.visibility = View.GONE
-                    result.success(null)
-                }
-
-                "clearWebView" -> {
-                    webView?.loadUrl("about:blank")
-                    result.success(null)
+                    try {
+                        unzip(zipPath, destPath)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.error("UNZIP_FAILED", e.message, null)
+                    }
                 }
 
                 else -> result.notImplemented()
@@ -65,113 +44,35 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // ----------------------------------------------------------------------
-    // ROOT LAYOUT (CREATED LAZILY – VERY IMPORTANT)
-    // ----------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // 🔥 STREAM-BASED ZIP EXTRACTION (MEMORY SAFE)
+    // ------------------------------------------------------------------
 
-    private fun ensureRootLayout() {
-        if (rootLayout != null) return
+    private fun unzip(zipFilePath: String, destDirectory: String) {
+        val destDir = File(destDirectory)
+        if (!destDir.exists()) destDir.mkdirs()
 
-        rootLayout = FrameLayout(this).apply {
-            setBackgroundColor(Color.TRANSPARENT)
-        }
+        ZipInputStream(BufferedInputStream(FileInputStream(zipFilePath))).use { zis ->
+            var entry: ZipEntry?
 
-        addContentView(
-            rootLayout,
-            ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        )
-    }
+            while (zis.nextEntry.also { entry = it } != null) {
+                val file = File(destDir, entry!!.name)
 
-    // ----------------------------------------------------------------------
-    // WEBVIEW CREATION (ANDROID TV SAFE)
-    // ----------------------------------------------------------------------
+                if (entry!!.isDirectory) {
+                    file.mkdirs()
+                } else {
+                    file.parentFile?.mkdirs()
 
-    private fun loadWebView(url: String) {
-
-        // ✅ Create native container only when needed
-        ensureRootLayout()
-
-        // ✅ Apply immersive mode ONLY when WebView shows
-        window.decorView.systemUiVisibility =
-            View.SYSTEM_UI_FLAG_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-
-        if (webView == null) {
-            webView = WebView(this)
-
-            webView!!.settings.apply {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-
-                allowFileAccess = true
-                allowContentAccess = true
-
-                mediaPlaybackRequiresUserGesture = false
-
-                useWideViewPort = true
-                loadWithOverviewMode = true
-
-                builtInZoomControls = false
-                displayZoomControls = false
-                setSupportZoom(false)
-
-                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                cacheMode = WebSettings.LOAD_NO_CACHE
+                    FileOutputStream(file).use { fos ->
+                        val buffer = ByteArray(4096)
+                        var count: Int
+                        while (zis.read(buffer).also { count = it } != -1) {
+                            fos.write(buffer, 0, count)
+                        }
+                    }
+                }
+                zis.closeEntry()
             }
-
-            webView!!.apply {
-                setBackgroundColor(Color.BLACK)
-
-                // 🔥 REQUIRED FOR TV BOXES
-                setLayerType(View.LAYER_TYPE_HARDWARE, null)
-
-                isVerticalScrollBarEnabled = false
-                isHorizontalScrollBarEnabled = false
-                overScrollMode = View.OVER_SCROLL_NEVER
-
-                webViewClient = WebViewClient()
-            }
-
-            rootLayout!!.addView(
-                webView,
-                FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-            )
-
-            // 🔥 FORCE VISIBILITY ON TV FIRMWARE
-            webView!!.bringToFront()
-            webView!!.requestFocus()
-            webView!!.requestFocusFromTouch()
         }
-
-        webView!!.loadUrl(url)
-        webView!!.visibility = View.VISIBLE
-    }
-
-    // ----------------------------------------------------------------------
-    // LIFECYCLE SAFETY
-    // ----------------------------------------------------------------------
-
-    override fun onResume() {
-        super.onResume()
-        WebView.setWebContentsDebuggingEnabled(true)
-        webView?.onResume()
-    }
-
-    override fun onPause() {
-        webView?.onPause()
-        super.onPause()
-    }
-
-    override fun onDestroy() {
-        webView?.destroy()
-        webView = null
-        super.onDestroy()
     }
 }

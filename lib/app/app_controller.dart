@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import '../native/native_webview_bridge.dart';
 import '../services/local_storage_service.dart';
 import '../services/location_service.dart';
 import '../services/screen_status_service.dart';
@@ -221,9 +220,6 @@ class AppController {
       // 🔴 HARD STOP TEMPLATE
       appState.hideTemplate();
       appState.clearTemplate();
-
-      await NativeWebViewBridge.hide();
-      await NativeWebViewBridge.clear();
 
       print('🟡 Player idle → waiting for next command');
     }

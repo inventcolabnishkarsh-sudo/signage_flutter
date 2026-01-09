@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter_archive/flutter_archive.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import '../models/template_download_dto.dart';
@@ -9,6 +9,10 @@ import 'local_storage_service.dart';
 import 'package:flutter/foundation.dart';
 
 class TemplateDownloadService {
+  // --------------------------------------------------------------------------
+  // 🔗 Native ZIP Channel
+  // --------------------------------------------------------------------------
+  static const MethodChannel _zipChannel = MethodChannel('native_zip');
   // --------------------------------------------------------------------------
   // 📁 DOWNLOADS/Templates (PUBLIC STORAGE)
   // --------------------------------------------------------------------------
@@ -80,33 +84,34 @@ class TemplateDownloadService {
   }
 
   // --------------------------------------------------------------------------
-  // 📦 Extract ZIP → Downloads/Templates/<templateName>/
+  // 📦 EXTRACT ZIP (NATIVE ANDROID)
   // --------------------------------------------------------------------------
   Future<bool> extractTemplate(String templateName) async {
     try {
       final base = await _downloadsDir();
       final safeName = _safeTemplateName(templateName);
 
-      final zipFile = File('$base/$safeName.zip');
-      final outDir = Directory('$base/$safeName');
+      final zipPath = '$base/$safeName.zip';
+      final destPath = '$base/$safeName';
 
-      if (!zipFile.existsSync()) {
-        debugPrint('❌ ZIP not found: ${zipFile.path}');
+      if (!File(zipPath).existsSync()) {
+        debugPrint('❌ ZIP not found: $zipPath');
         return false;
       }
 
-      if (!outDir.existsSync()) {
-        outDir.createSync(recursive: true);
+      // 🔥 CALL NATIVE ANDROID UNZIP
+      final bool? success = await _zipChannel.invokeMethod<bool>('unzip', {
+        'zipPath': zipPath,
+        'destPath': destPath,
+      });
+
+      if (success == true) {
+        debugPrint('✅ Native unzip completed: $destPath');
+        return true;
       }
 
-      // 🚀 NATIVE ZIP EXTRACTION (NO MEMORY CRASH)  --- nishkarsh
-      await ZipFile.extractToDirectory(
-        zipFile: zipFile,
-        destinationDir: outDir,
-      );
-
-      debugPrint('✅ Extracted to: ${outDir.path}');
-      return true;
+      debugPrint('❌ Native unzip failed');
+      return false;
     } catch (e, stack) {
       debugPrint('❌ extractTemplate failed: $e');
       debugPrintStack(stackTrace: stack);
