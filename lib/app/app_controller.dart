@@ -235,7 +235,7 @@ class AppController {
     AppToast.show('Health service started');
 
     _healthTimer = Timer.periodic(
-      const Duration(seconds: 15), // SAME as WinForms
+      const Duration(minutes: 30),
       (_) async {
         if (!appState.isClientRegistered) return;
         AppToast.show('Health ping sent');

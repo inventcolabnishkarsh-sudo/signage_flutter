@@ -258,33 +258,41 @@ class CommandDispatcher {
   //   appState.setTemplate(url);
   // }
 
+  // Future<void> _loadTemplate(String htmlPath) async {
+  //   final templatesRoot = await _templateService.getTemplateDir();
+  //
+  //   // 🔥 Start server on all interfaces
+  //   await LocalWebServer.start(templatesRoot, port: 8080);
+  //
+  //   final url = await _buildTemplateUrl(htmlPath);
+  //
+  //   print('🧠 WebView loading: $url');
+  //   AppToast.show('Loading template on screen...');
+  //
+  //   appState.setTemplate(url);
+  // }
+
   Future<void> _loadTemplate(String htmlPath) async {
-    final templatesRoot = await _templateService.getTemplateDir();
-
-    // 🔥 Start server on all interfaces
-    await LocalWebServer.start(templatesRoot, port: 8080);
-
-    final url = await _buildTemplateUrl(htmlPath);
-
-    print('🧠 WebView loading: $url');
+    print('🧠 WebView loading FILE directly: $htmlPath');
     AppToast.show('Loading template on screen...');
 
-    appState.setTemplate(url);
+    // ✅ STORE FILE PATH, NOT URL
+    appState.setTemplate(htmlPath);
   }
 
-  Future<String> _buildTemplateUrl(String htmlPath) async {
-    final templatesRoot = await _templateService.getTemplateDir();
-
-    // Convert absolute file path → relative web path
-    final relativePath = htmlPath.startsWith(templatesRoot)
-        ? htmlPath.replaceFirst('$templatesRoot/', '')
-        : htmlPath;
-
-    final ip = await getLocalIpAddress();
-    final host = ip ?? 'localhost';
-
-    return 'http://$host:8080/$relativePath';
-  }
+  // Future<String> _buildTemplateUrl(String htmlPath) async {
+  //   final templatesRoot = await _templateService.getTemplateDir();
+  //
+  //   // Convert absolute file path → relative web path
+  //   final relativePath = htmlPath.startsWith(templatesRoot)
+  //       ? htmlPath.replaceFirst('$templatesRoot/', '')
+  //       : htmlPath;
+  //
+  //   final ip = await getLocalIpAddress();
+  //   final host = ip ?? 'localhost';
+  //
+  //   return 'http://$host:8080/$relativePath';
+  // }
 
   // ---------------------------------------------------------------------------
   // SCHEDULED UPDATE
@@ -323,25 +331,39 @@ class CommandDispatcher {
 
     print('✅ Scheduled template ready (waiting for time window)');
   }
+  //
+  // Future<void> loadLocalTemplate(
+  //   String htmlPath, {
+  //   bool scheduled = false,
+  // }) async {
+  //   print('🧠 Loading local scheduled template: $htmlPath');
+  //
+  //   appState.hideTemplate();
+  //   // await NativeWebViewBridge.hide();
+  //   // await NativeWebViewBridge.clear();
+  //
+  //   final templatesRoot = await _templateService.getTemplateDir();
+  //   await LocalWebServer.start(templatesRoot, port: 8080);
+  //
+  //   final url = await _buildTemplateUrl(htmlPath);
+  //
+  //   print('🧠 WebView loading (scheduled): $url');
+  //   AppToast.show('🧠 WebView loading (scheduled)');
+  //   appState.setTemplate(url, scheduled: scheduled);
+  //   appState.showTemplateView();
+  // }
 
   Future<void> loadLocalTemplate(
     String htmlPath, {
     bool scheduled = false,
   }) async {
     print('🧠 Loading local scheduled template: $htmlPath');
+    AppToast.show('Loading scheduled template');
 
     appState.hideTemplate();
-    // await NativeWebViewBridge.hide();
-    // await NativeWebViewBridge.clear();
 
-    final templatesRoot = await _templateService.getTemplateDir();
-    await LocalWebServer.start(templatesRoot, port: 8080);
-
-    final url = await _buildTemplateUrl(htmlPath);
-
-    print('🧠 WebView loading (scheduled): $url');
-    AppToast.show('🧠 WebView loading (scheduled)');
-    appState.setTemplate(url, scheduled: scheduled);
+    // ✅ DIRECT FILE PATH
+    appState.setTemplate(htmlPath, scheduled: scheduled);
     appState.showTemplateView();
   }
 

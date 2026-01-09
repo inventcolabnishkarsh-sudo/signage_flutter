@@ -18,7 +18,6 @@ class _TemplateWebViewState extends State<TemplateWebView> {
   void initState() {
     super.initState();
 
-    // 🔥 Android-specific creation params
     final params = const PlatformWebViewControllerCreationParams();
 
     _controller = WebViewController.fromPlatformCreationParams(params)
@@ -36,8 +35,11 @@ class _TemplateWebViewState extends State<TemplateWebView> {
             widget.state.updateLoading("Loading template…", p / 100);
           },
           onPageFinished: (_) {
-            widget.state.stopTemplateLoading();
-            widget.state.showTemplateView();
+            // ✅ SAFE STATE UPDATE
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              widget.state.stopTemplateLoading();
+              widget.state.showTemplateView();
+            });
           },
           onWebResourceError: (error) {
             debugPrint(
@@ -47,9 +49,8 @@ class _TemplateWebViewState extends State<TemplateWebView> {
         ),
       );
 
-    // 🔥 ANDROID AUTOPLAY FIX (THIS IS THE KEY)
+    // 🔥 ANDROID TV AUTOPLAY FIX (CORRECT)
     final androidController = _controller.platform as AndroidWebViewController;
-
     androidController.setMediaPlaybackRequiresUserGesture(false);
 
     _loadTemplate();
@@ -63,7 +64,13 @@ class _TemplateWebViewState extends State<TemplateWebView> {
 
     widget.state.startTemplateLoading("Preparing content…");
 
-    await _controller.loadRequest(Uri.parse(template));
+    if (template.startsWith('http://') || template.startsWith('https://')) {
+      // 🌐 Local server / URL
+      await _controller.loadRequest(Uri.parse(template));
+    } else {
+      // 📁 Local file
+      await _controller.loadFile(template);
+    }
   }
 
   @override
