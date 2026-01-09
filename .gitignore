@@ -1,32 +1,117 @@
-### IntelliJ IDEA ###
+####################################
+# Flutter / Dart
+####################################
+.dart_tool/
+.packages
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+
+# Generated files
+*.lock
+*.log
+
+####################################
+# Android
+####################################
+android/.gradle/
+android/local.properties
+android/key.properties
+android/**/build/
+
+# APK / AAB
+*.apk
+*.aab
+
+####################################
+# iOS
+####################################
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/App.framework
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Runner.xcworkspace/
+ios/DerivedData/
+ios/.generated/
+
+####################################
+# macOS
+####################################
+macos/Flutter/GeneratedPluginRegistrant.swift
+macos/Flutter/ephemeral/
+macos/.symlinks/
+macos/Pods/
+macos/DerivedData/
+
+####################################
+# Windows
+####################################
+windows/flutter/ephemeral/
+
+####################################
+# Linux
+####################################
+linux/flutter/ephemeral/
+
+####################################
+# Web
+####################################
+web/.dart_tool/
+web/build/
+
+####################################
+# IntelliJ / Android Studio
+####################################
+.idea/
+*.iml
 out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 
-### Kotlin ###
-.kotlin
+####################################
+# VS Code
+####################################
+.vscode/
 
-### Eclipse ###
-.apt_generated
+####################################
+# Kotlin
+####################################
+.kotlin/
+
+####################################
+# Eclipse
+####################################
 .classpath
-.factorypath
 .project
-.settings
+.settings/
+.apt_generated
+.factorypath
 .springBeans
 .sts4-cache
 bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
+####################################
+# NetBeans
+####################################
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
 
-### VS Code ###
-.vscode/
-
-### Mac OS ###
+####################################
+# macOS system files
+####################################
 .DS_Store
+
+####################################
+# Logs
+####################################
+*.log
