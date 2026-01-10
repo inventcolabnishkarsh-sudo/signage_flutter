@@ -10,7 +10,7 @@ enum ClientStatus { disconnected, connected }
 class AppState extends ChangeNotifier {
   String? activeTemplateFile;
   TemplateSchedule? activeSchedule;
-
+  bool webViewEpoch = false;
   // 👇 ADD THIS
   String? scheduledTemplateFile;
 
@@ -106,6 +106,11 @@ class AppState extends ChangeNotifier {
 
   void markScheduledPlaying(bool value) {
     isShowingScheduledTemplate = value;
+    notifyListeners();
+  }
+
+  void resetWebView() {
+    webViewEpoch = !webViewEpoch;
     notifyListeners();
   }
 

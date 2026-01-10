@@ -1,6 +1,7 @@
 import 'dart:convert';
 import '../models/screen_register_dto.dart';
 import '../config/app_config.dart';
+import '../models/screen_register_model.dart';
 import 'api_service.dart';
 import 'local_storage_service.dart';
 
@@ -9,7 +10,7 @@ class ScreenRegistrationService {
 
   ScreenRegistrationService(this.api);
 
-  Future<int?> registerScreen(ScreenRegisterDTO dto) async {
+  Future<ScreenRegisterResult?> registerScreen(ScreenRegisterDTO dto) async {
     try {
       final response = await api.send(
         endpoint: AppConfig.registerEndpoint,
@@ -20,30 +21,29 @@ class ScreenRegistrationService {
       print('Register status code: ${response.statusCode}');
       print('Register response body: ${response.body}');
 
-      // ✅ SUCCESS WITH BODY (APPROVED)
+      // ✅ SUCCESS WITH BODY
       if (response.statusCode == 200 && response.body.isNotEmpty) {
         final json = jsonDecode(response.body);
-        final int primaryId = json['Id'];
 
-        // 🔐 STORE PRIMARY ID LOCALLY
-        await LocalStorageService.savePrimaryId(primaryId);
-
-        print('✅ PrimaryId saved locally: $primaryId');
-
-        return primaryId;
+        return ScreenRegisterResult(
+          screenId: json['Id'],
+          screenStatus: json['ScreenStatus'], // 🔥 THIS IS THE FIX
+        );
       }
 
-      // ✅ SUCCESS WITHOUT BODY (PENDING)
+      // ✅ PENDING (NO BODY)
       if (response.statusCode == 204) {
-        return null; // Still SUCCESS
+        return ScreenRegisterResult(
+          screenId: null,
+          screenStatus: 1, // Pending
+        );
       }
 
-      // ❌ REAL FAILURE
-      return -1;
+      return null;
     } catch (e, stack) {
       print('Register exception: $e');
       print(stack);
-      return -1;
+      return null;
     }
   }
 }

@@ -56,9 +56,38 @@ class _TemplateWebViewState extends State<TemplateWebView> {
     _loadTemplate();
   }
 
+  @override
+  void dispose() {
+    try {
+      _controller.runJavaScript('''
+      try {
+        document.querySelectorAll('video,audio').forEach(e => {
+          e.pause();
+          e.src = '';
+          e.load();
+        });
+        document.body.innerHTML = '';
+      } catch(e) {}
+    ''');
+    } catch (_) {}
+
+    super.dispose();
+  }
+
   Future<void> _loadTemplate() async {
     final template = widget.state.currentTemplate;
     if (template == null) return;
+
+    // 🔥 HARD STOP OLD MEDIA
+    await _controller.runJavaScript('''
+    try {
+      document.querySelectorAll('video,audio').forEach(e => {
+        e.pause();
+        e.src = '';
+        e.load();
+      });
+    } catch(e) {}
+  ''');
 
     debugPrint("📄 Loading template in WebView: $template");
 

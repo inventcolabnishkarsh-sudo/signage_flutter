@@ -59,18 +59,10 @@ class AppController {
     final connectivityService = ConnectivityService(apiService);
     final screenStatusService = ScreenStatusService(apiService);
     final registrationService = ScreenRegistrationService(apiService);
-    // 1️⃣ CHECK CONNECTIVITY
-    print('1️⃣ Checking backend connectivity...');
 
-    /// ANDROID_ID = MAC + DeviceId (Android limitation)
     final deviceId = await DeviceService.getDeviceId();
     final resolution = await DeviceService.getScreenResolution();
-    // 2️⃣ REGISTER SCREEN
-    print('2️⃣ Registering screen...');
-    print('🆔 Device ID => $deviceId');
-    print('🧾 Resolution => $resolution');
 
-    /// 🔐 CRC32 Connection Code (EXACT WinForms logic)
     final connectionCode = _generateConnectionCode(
       playerType: 'ANDROID',
       macAddress: deviceId,
@@ -81,25 +73,16 @@ class AppController {
     // 1️⃣ CHECK CONNECTIVITY
     while (true) {
       if (await connectivityService.checkConnectivity()) {
-        AppToast.show('Backend connected');
-
         print('✅ Backend connectivity OK');
         break;
       }
-      AppToast.show('Waiting for backend...');
-
-      print('⏳ Waiting for backend...');
       await Future.delayed(const Duration(seconds: 10));
     }
 
     Map<String, dynamic> locationData = {};
-
     try {
       locationData = await LocationService.getCurrentLocation();
-      print('📍 Location fetched: $locationData');
-    } catch (e) {
-      print('⚠️ Location unavailable: $e');
-    }
+    } catch (_) {}
 
     final dto = ScreenRegisterDTO(
       macProductId: deviceId,
@@ -115,58 +98,66 @@ class AppController {
       screenWidth: resolution['width']!,
       screenHeight: resolution['height']!,
     );
+
     AppToast.show('Registering screen');
 
-    final screenId = await registrationService.registerScreen(dto);
+    final registerResult = await registrationService.registerScreen(dto);
 
-    // ❌ Hard failure
-    if (screenId == -1) {
-      AppToast.show('Screen registration failed', bgColor: Colors.red);
-
-      print('❌ Screen registration API error');
+    if (registerResult == null) {
+      print('❌ Registration failed');
       return;
     }
 
-    if (screenId != null) {
-      appState.setRegistered(screenId);
+    final status = registerResult.screenStatus;
+    final screenId = registerResult.screenId;
 
-      await LocalStorageService.savePrimaryId(screenId);
-
-      AppToast.show('Screen approved');
-      print('✅ Screen approved instantly');
-    } else {
-      AppToast.show('Waiting for approval');
-      print('🟡 Screen registered (pending approval)');
-    }
-
-    while (!appState.isClientRegistered) {
-      final screenId = await screenStatusService.isScreenRegistered(
-        macProductId: deviceId,
-      );
+    // 🟢 CASE 1: APPROVED IMMEDIATELY (2 / 3)
+    if (status == 2 || status == 3) {
+      print('✅ Screen approved instantly (status $status)');
 
       if (screenId != null) {
         appState.setRegistered(screenId);
-
-        await LocalStorageService.savePrimaryId(screenId); // ✅ FIXED
-
-        AppToast.show('Screen approved');
-        print('✅ Screen approved with ID $screenId');
-        break;
+        await LocalStorageService.savePrimaryId(screenId);
       }
 
-      print('⏳ Screen pending approval...');
-      await Future.delayed(const Duration(seconds: 15));
+      _startHealthTimer(deviceId);
+      _startSse();
+      _startScheduleTimer();
+
+      await dispatcher.loadDefaultTemplateIfExists();
+      return; // 🔥 VERY IMPORTANT
     }
 
-    // 4️⃣ START HEALTH + SSE (EXACT WinForms order)
-    _startHealthTimer(deviceId);
-    _startSse();
+    // 🟡 CASE 2: PENDING (status 1)
+    print('🟡 Screen pending approval');
 
-    // ⭐ START SCHEDULE LOOP
-    _startScheduleTimer();
+    while (true) {
+      final statusResult = await screenStatusService.getScreenStatus(
+        macProductId: deviceId,
+      );
 
-    // ⭐ Load default template if present (LeftScreen)
-    await dispatcher.loadDefaultTemplateIfExists();
+      if (statusResult == null || statusResult.screenStatus == 1) {
+        await Future.delayed(const Duration(seconds: 15));
+        continue;
+      }
+
+      // 🟢 APPROVED LATER
+      if (statusResult.screenStatus == 2 || statusResult.screenStatus == 3) {
+        final id = statusResult.screenId;
+
+        if (id != null) {
+          appState.setRegistered(id);
+          await LocalStorageService.savePrimaryId(id);
+        }
+
+        _startHealthTimer(deviceId);
+        _startSse();
+        _startScheduleTimer();
+
+        await dispatcher.loadDefaultTemplateIfExists();
+        break;
+      }
+    }
   }
 
   void _startScheduleTimer() {
@@ -234,27 +225,24 @@ class AppController {
     print('💓 Starting HEALTH TIMER');
     AppToast.show('Health service started');
 
-    _healthTimer = Timer.periodic(
-      const Duration(minutes: 30),
-      (_) async {
-        if (!appState.isClientRegistered) return;
-        AppToast.show('Health ping sent');
-        final dto = ScreenHealthDetailsDTO(
-          screenId: appState.screenId!,
-          macProductId: macAddress,
-          templateName: appState.activeTemplateFile ?? '',
-          totalSpace: 0, // TODO: Android storage calc
-          filledSpace: 0, // TODO: Android storage calc
-        );
+    _healthTimer = Timer.periodic(const Duration(minutes: 30), (_) async {
+      if (!appState.isClientRegistered) return;
+      AppToast.show('Health ping sent');
+      final dto = ScreenHealthDetailsDTO(
+        screenId: appState.screenId!,
+        macProductId: macAddress,
+        templateName: appState.activeTemplateFile ?? '',
+        totalSpace: 0, // TODO: Android storage calc
+        filledSpace: 0, // TODO: Android storage calc
+      );
 
-        final cmd = await healthService.sendHealth(dto);
+      final cmd = await healthService.sendHealth(dto);
 
-        /// WinForms: CommandParsing(msg)
-        if (cmd != null && cmd.commandType != SseCommandType.templateUpdate) {
-          dispatcher.handle(cmd);
-        }
-      },
-    );
+      /// WinForms: CommandParsing(msg)
+      if (cmd != null && cmd.commandType != SseCommandType.templateUpdate) {
+        dispatcher.handle(cmd);
+      }
+    });
 
     print('💓 Health timer started');
   }

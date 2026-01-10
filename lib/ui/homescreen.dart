@@ -23,8 +23,13 @@ class HomeScreen extends StatelessWidget {
               const ColoredBox(color: Colors.black),
 
               // ✅ WEBVIEW
+              // if (state.showTemplate && state.currentTemplate != null)
+              //   TemplateWebView(state: state),
               if (state.showTemplate && state.currentTemplate != null)
-                TemplateWebView(state: state),
+                TemplateWebView(
+                  key: ValueKey(state.currentTemplate),
+                  state: state,
+                ),
 
               // ✅ IDLE
               if (!state.showTemplate && !state.isTemplateLoading)

@@ -107,6 +107,7 @@ class CommandDispatcher {
       // 🔴 HARD STOP CURRENT TEMPLATE
       appState.hideTemplate();
       appState.clearTemplate();
+      appState.resetWebView();
 
       // 🧹 DELETE OLD FILES (🔥 THIS IS THE FIX)
       //await _clearAllTemplates();
@@ -139,28 +140,6 @@ class CommandDispatcher {
     }
   }
 
-  // Future<void> _clearAllTemplates() async {
-  //   final baseDir = await _templateService.getTemplateDir();
-  //   final dir = Directory(baseDir);
-  //
-  //   if (!dir.existsSync()) return;
-  //
-  //   print('🧹 Clearing old templates...');
-  //
-  //   for (final entity in dir.listSync(recursive: false)) {
-  //     try {
-  //       if (entity is Directory) {
-  //         entity.deleteSync(recursive: true);
-  //         print('🗑 Deleted folder: ${entity.path}');
-  //       } else if (entity is File && entity.path.endsWith('.zip')) {
-  //         entity.deleteSync();
-  //         print('🗑 Deleted zip: ${entity.path}');
-  //       }
-  //     } catch (e) {
-  //       print('❌ Failed to delete ${entity.path}: $e');
-  //     }
-  //   }
-  // }
   Future<String?> _downloadAndPrepareTemplate(String templateName) async {
     try {
       AppToast.show('Downloading template');
@@ -188,40 +167,6 @@ class CommandDispatcher {
     }
   }
 
-  // Future<String?> _downloadAndPrepareTemplate(String templateName) async {
-  //   final cleanName = templateName.contains('\\')
-  //       ? templateName.split('\\').last
-  //       : templateName;
-  //
-  //   // 1️⃣ Download ZIP
-  //   final zipOk = await _templateService.downloadZip(templateName);
-  //   if (!zipOk) return null;
-  //
-  //   // 2️⃣ Extract ZIP
-  //   final extractOk = await _templateService.extractTemplate(cleanName);
-  //   if (!extractOk) return null;
-  //
-  //   // 3️⃣ Resolve template directory
-  //   final baseDir = await _templateService.getTemplateDir();
-  //   final templateDir = Directory('$baseDir/$cleanName');
-  //
-  //   if (!templateDir.existsSync()) {
-  //     print('❌ Template directory not found');
-  //     return null;
-  //   }
-  //
-  //   // 4️⃣ USE EXISTING HTML (IMPORTANT)
-  //   final htmlFile = File('${templateDir.path}/$cleanName.html');
-  //   AppToast.show('Download template success');
-  //   if (!htmlFile.existsSync()) {
-  //     print('❌ HTML file missing: ${htmlFile.path}');
-  //     return null;
-  //   }
-  //
-  //   print('✅ Using existing HTML: ${htmlFile.path}');
-  //   return htmlFile.path;
-  // }
-
   Future<String?> getLocalIpAddress() async {
     final interfaces = await NetworkInterface.list(
       type: InternetAddressType.IPv4,
@@ -238,40 +183,6 @@ class CommandDispatcher {
     return null;
   }
 
-  // Future<void> _loadTemplate(String htmlPath) async {
-  //   final templatesRoot = await _templateService.getTemplateDir();
-  //   await LocalWebServer.start(templatesRoot, port: 8080);
-  //
-  //   final relativePath = htmlPath.replaceFirst('$templatesRoot/', '');
-  //   final url = 'http://localhost:8080/$relativePath';
-  //
-  //   print('🧠 Native WebView loading: $url');
-  //   AppToast.show('Loading template on screen...');
-  //   // 🔥 Native WebView lifecycle
-  //   await NativeWebViewBridge.hide();
-  //   await NativeWebViewBridge.clear();
-  //
-  //   await NativeWebViewBridge.loadTemplate(url);
-  //   await NativeWebViewBridge.show();
-  //
-  //   // Keep state for backend health reporting
-  //   appState.setTemplate(url);
-  // }
-
-  // Future<void> _loadTemplate(String htmlPath) async {
-  //   final templatesRoot = await _templateService.getTemplateDir();
-  //
-  //   // 🔥 Start server on all interfaces
-  //   await LocalWebServer.start(templatesRoot, port: 8080);
-  //
-  //   final url = await _buildTemplateUrl(htmlPath);
-  //
-  //   print('🧠 WebView loading: $url');
-  //   AppToast.show('Loading template on screen...');
-  //
-  //   appState.setTemplate(url);
-  // }
-
   Future<void> _loadTemplate(String htmlPath) async {
     print('🧠 WebView loading FILE directly: $htmlPath');
     AppToast.show('Loading template on screen...');
@@ -280,31 +191,17 @@ class CommandDispatcher {
     appState.setTemplate(htmlPath);
   }
 
-  // Future<String> _buildTemplateUrl(String htmlPath) async {
-  //   final templatesRoot = await _templateService.getTemplateDir();
-  //
-  //   // Convert absolute file path → relative web path
-  //   final relativePath = htmlPath.startsWith(templatesRoot)
-  //       ? htmlPath.replaceFirst('$templatesRoot/', '')
-  //       : htmlPath;
-  //
-  //   final ip = await getLocalIpAddress();
-  //   final host = ip ?? 'localhost';
-  //
-  //   return 'http://$host:8080/$relativePath';
-  // }
-
-  // ---------------------------------------------------------------------------
-  // SCHEDULED UPDATE
-  // ---------------------------------------------------------------------------
-
   Future<void> _handleScheduledUpdate(SseMessage msg) async {
     final templateName = msg.templateName;
     if (templateName == null || templateName.isEmpty) return;
+
     AppToast.show('Scheduled content started');
-    // 🧹 CLEAR OLD FIRST
-    //await _clearAllTemplates();
     print('📥 Scheduled template received → downloading');
+
+    // 🔴 HARD STOP CURRENT TEMPLATE (VERY IMPORTANT)
+    appState.hideTemplate();
+    appState.clearTemplate();
+    appState.resetWebView(); // 🔥 FORCE WEBVIEW DISPOSE
 
     // 🔽 DOWNLOAD + EXTRACT (same as WinForms)
     final templatePath = await _downloadAndPrepareTemplate(templateName);
@@ -313,17 +210,17 @@ class CommandDispatcher {
       return;
     }
 
-    // 🔒 Store template path (but DO NOT load)
+    // 🔒 STORE TEMPLATE (DO NOT LOAD YET)
     appState.setTemplate(templatePath, scheduled: true);
 
-    // 🗓 Parse & store schedule
+    // 🗓 PARSE & STORE SCHEDULE
     if (msg.templateSchedule != null) {
       final schedule = TemplateScheduleParser.parse(msg.templateSchedule!);
       activeSchedule = schedule;
       appState.setSchedule(schedule);
     }
 
-    // 🔁 Update backend status (same as C#)
+    // 🔁 UPDATE BACKEND STATUS
     await _updateTemplateStatus(
       templateName: templateName,
       status: 'Template received',
@@ -331,36 +228,17 @@ class CommandDispatcher {
 
     print('✅ Scheduled template ready (waiting for time window)');
   }
-  //
-  // Future<void> loadLocalTemplate(
-  //   String htmlPath, {
-  //   bool scheduled = false,
-  // }) async {
-  //   print('🧠 Loading local scheduled template: $htmlPath');
-  //
-  //   appState.hideTemplate();
-  //   // await NativeWebViewBridge.hide();
-  //   // await NativeWebViewBridge.clear();
-  //
-  //   final templatesRoot = await _templateService.getTemplateDir();
-  //   await LocalWebServer.start(templatesRoot, port: 8080);
-  //
-  //   final url = await _buildTemplateUrl(htmlPath);
-  //
-  //   print('🧠 WebView loading (scheduled): $url');
-  //   AppToast.show('🧠 WebView loading (scheduled)');
-  //   appState.setTemplate(url, scheduled: scheduled);
-  //   appState.showTemplateView();
-  // }
 
   Future<void> loadLocalTemplate(
     String htmlPath, {
     bool scheduled = false,
-  }) async {
+  })
+  async {
     print('🧠 Loading local scheduled template: $htmlPath');
     AppToast.show('Loading scheduled template');
 
     appState.hideTemplate();
+    appState.resetWebView();
 
     // ✅ DIRECT FILE PATH
     appState.setTemplate(htmlPath, scheduled: scheduled);
@@ -372,7 +250,10 @@ class CommandDispatcher {
   // ---------------------------------------------------------------------------
 
   void _handleDeleteTemplate(SseMessage msg) {
+    //appState.clearTemplate();
+    appState.hideTemplate();
     appState.clearTemplate();
+    appState.resetWebView();
   }
 
   // ---------------------------------------------------------------------------

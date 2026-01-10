@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../models/screen_status_result.dart';
 import 'api_service.dart';
 
 class ScreenStatusService {
@@ -12,7 +13,9 @@ class ScreenStatusService {
   /// Returns:
   /// - screenId (int) → Approved
   /// - null → Pending / Not registered
-  Future<int?> isScreenRegistered({required String macProductId}) async {
+  Future<ScreenStatusResult?> getScreenStatus({
+    required String macProductId,
+  }) async {
     try {
       final response = await api.send(
         endpoint: 'Screen/IsScreenRegistered',
@@ -23,13 +26,14 @@ class ScreenStatusService {
       if (response.statusCode == 200) {
         final json = jsonDecode(response.body);
 
-        // 🔑 THIS FIXES EVERYTHING
-        return json['Id']; // int?
+        return ScreenStatusResult(
+          screenId: json['Id'],
+          screenStatus: json['ScreenStatus'], // 🔥 IMPORTANT
+        );
       }
-
       return null;
     } catch (e) {
-      print('❌ IsScreenRegistered failed: $e');
+      print('❌ getScreenStatus failed: $e');
       return null;
     }
   }
